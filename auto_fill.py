@@ -55,6 +55,26 @@ def get_temp_email(skip_index=0):
         print(f"❌ Error saat mengambil email: {e}")
         return None
 
+def is_email_already_used(email):
+    """Cek apakah email sudah pernah digunakan"""
+    try:
+        filename = "tiktok_accounts.json"
+        
+        try:
+            with open(filename, 'r') as f:
+                accounts = json.load(f)
+                
+            # Cek apakah email sudah ada
+            for account in accounts:
+                if account.get('email') == email:
+                    return True
+            return False
+        except FileNotFoundError:
+            return False
+    except Exception as e:
+        print(f"⚠️ Error saat cek email: {e}")
+        return False
+
 def save_account_to_json(email, password, username):
     """Simpan data akun ke file JSON"""
     try:
@@ -346,7 +366,21 @@ def select_month_first(wait, driver, month_text="November"):
     except Exception as e:
         print(f"❌ Error saat memilih bulan: {e}")
 
-def fill_demo_form():
+def cleanup_chrome():
+    """Cleanup Chrome process dan data"""
+    import subprocess
+    try:
+        print("🔨 Memaksa menutup semua proses Chrome...")
+        result = subprocess.run("taskkill /F /IM chrome.exe /T", shell=True, capture_output=True, text=True)
+        if result.returncode == 0:
+            print("✓ Semua proses Chrome berhasil ditutup")
+        else:
+            print("✓ Tidak ada proses Chrome yang perlu ditutup")
+        time.sleep(2)
+    except Exception as e:
+        print(f"⚠️ Error saat force kill Chrome: {e}")
+
+def fill_demo_form(use_proxy=True):
     import os
     import subprocess
     import socket
@@ -464,7 +498,31 @@ def fill_demo_form():
         # 4) ISI EMAIL
         # ==========================================
         print("\n📧 Mengisi email...")
-        temp_email = get_temp_email()
+        
+        # Coba ambil email yang belum digunakan
+        temp_email = None
+        max_email_attempts = 10
+        
+        for email_attempt in range(max_email_attempts):
+            candidate_email = get_temp_email(skip_index=email_attempt)
+            
+            if candidate_email:
+                # Cek apakah email sudah pernah digunakan
+                if is_email_already_used(candidate_email):
+                    print(f"⚠️ Email '{candidate_email}' sudah pernah digunakan, mencoba email lain...")
+                    continue
+                else:
+                    temp_email = candidate_email
+                    print(f"✓ Email '{temp_email}' belum pernah digunakan, akan digunakan untuk registrasi")
+                    break
+            else:
+                print(f"⚠️ Gagal mengambil email (attempt {email_attempt + 1}/{max_email_attempts})")
+                time.sleep(2)
+        
+        if not temp_email:
+            print("❌ Tidak bisa mendapatkan email yang valid setelah beberapa percobaan")
+            return
+        
         if temp_email:
             try:
                 email_input = wait.until(
@@ -493,10 +551,18 @@ def fill_demo_form():
                 email_input.send_keys(Keys.DELETE)
                 time.sleep(0.3)
                 
-                # Ketik email karakter per karakter untuk lebih natural (dengan delay lebih lama)
-                for char in temp_email:
+                # Ketik email karakter per karakter untuk lebih natural (dengan delay lebih lama dan variasi)
+                for i, char in enumerate(temp_email):
                     email_input.send_keys(char)
-                    time.sleep(random.uniform(0.1, 0.25))  # Delay lebih lama untuk terlihat lebih human
+                    # Variasi delay: kadang cepat, kadang lambat seperti manusia
+                    if i % 3 == 0:
+                        time.sleep(random.uniform(0.15, 0.35))  # Lebih lambat
+                    else:
+                        time.sleep(random.uniform(0.08, 0.18))  # Lebih cepat
+                    
+                    # Kadang pause lebih lama (seperti manusia berpikir)
+                    if random.random() < 0.1:  # 10% chance
+                        time.sleep(random.uniform(0.3, 0.6))
                 
                 # Trigger events
                 driver.execute_script("""
@@ -560,10 +626,18 @@ def fill_demo_form():
             password_input.send_keys(Keys.DELETE)
             time.sleep(0.3)
             
-            # Ketik password karakter per karakter (dengan delay lebih lama)
-            for char in random_password:
+            # Ketik password karakter per karakter (dengan delay lebih lama dan variasi)
+            for i, char in enumerate(random_password):
                 password_input.send_keys(char)
-                time.sleep(random.uniform(0.1, 0.25))  # Delay lebih lama untuk terlihat lebih human
+                # Variasi delay seperti manusia mengetik
+                if i % 3 == 0:
+                    time.sleep(random.uniform(0.15, 0.35))
+                else:
+                    time.sleep(random.uniform(0.08, 0.18))
+                
+                # Kadang pause (seperti manusia berpikir)
+                if random.random() < 0.1:
+                    time.sleep(random.uniform(0.3, 0.6))
             
             # Trigger events
             driver.execute_script("""
@@ -619,16 +693,27 @@ def fill_demo_form():
                 print("✓ Tombol Send Code berhasil diklik")
                 time.sleep(3)
                 
-                # Cek apakah ada CAPTCHA
-                print("🔍 Mengecek CAPTCHA...")
+                # Cek apakah ada CAPTCHA atau error message
+                print("🔍 Mengecek CAPTCHA dan error message...")
                 try:
+                    # Cek CAPTCHA
                     captcha_elements = driver.find_elements(By.XPATH, "//*[contains(text(), 'Pilih') and contains(text(), 'objek')]")
                     if len(captcha_elements) > 0:
                         print("🤖 CAPTCHA terdeteksi!")
                         print("⚠️ CAPTCHA perlu diselesaikan manual")
-                        print("⏳ Menunggu 30 detik untuk Anda selesaikan CAPTCHA...")
-                        time.sleep(30)
-                except:
+                        print("⏳ Menunggu 60 detik untuk Anda selesaikan CAPTCHA...")
+                        time.sleep(60)
+                    
+                    # Cek error message "account at risk"
+                    error_elements = driver.find_elements(By.XPATH, "//*[contains(text(), 'at risk') or contains(text(), 'suspicious')]")
+                    if len(error_elements) > 0:
+                        print("⚠️ Akun terdeteksi sebagai suspicious!")
+                        print("🔄 Akan mencoba dengan delay lebih lama...")
+                        time.sleep(random.uniform(10, 15))
+                        raise Exception("Account detected as suspicious - will retry")
+                except Exception as e:
+                    if "suspicious" in str(e):
+                        raise
                     pass
                 
                 print("✓ Lanjut ke OTP")
@@ -842,9 +927,14 @@ def fill_demo_form():
         print("\n✅ Proses selesai!\n")
         
         # Tunggu sebentar agar bisa melihat hasilnya
-        print("Menunggu 5 detik sebelum cleanup...")
-        time.sleep(5)
+        print("Menunggu 3 detik sebelum cleanup...")
+        time.sleep(3)
 
+    except Exception as e:
+        print(f"\n❌ ERROR FATAL: {e}")
+        print("⚠️ Proses registrasi gagal, akan dilanjutkan ke akun berikutnya...")
+        raise  # Re-raise exception untuk ditangkap di run_multiple_registrations
+    
     finally:
         try:
             # Hapus data situs sebelum close
@@ -854,25 +944,148 @@ def fill_demo_form():
             driver.execute_script("window.sessionStorage.clear();")
             print("✓ Data situs berhasil dihapus")
             time.sleep(1)
-        except:
-            pass
+        except Exception as e:
+            print(f"⚠️ Error saat membersihkan data: {e}")
         
         print("\n🔒 Menutup browser...")
         try:
             driver.quit()
-        except:
-            pass
+            print("✓ Driver berhasil ditutup")
+            time.sleep(1)
+        except Exception as e:
+            print(f"⚠️ Error saat menutup driver: {e}")
         
-        # Paksa kill Chrome process jika masih ada
+        # Paksa kill Chrome process
+        cleanup_chrome()
+        
+        print("✅ Cleanup selesai!")
+
+def get_total_available_emails():
+    """Cek total email yang tersedia di API"""
+    try:
+        url = "https://tempmail.alrelshop.my.id/api.php?action=get_generated_emails"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if 'emails' in data:
+                return len(data['emails'])
+        return 0
+    except Exception as e:
+        print(f"❌ Error saat cek total email: {e}")
+        return 0
+
+def run_multiple_registrations():
+    """Jalankan registrasi berulang sampai email habis dengan retry mechanism"""
+    print("=" * 60)
+    print("TikTok Auto Registration - Multiple Accounts")
+    print("=" * 60)
+    
+    # Cek total email yang tersedia
+    total_emails = get_total_available_emails()
+    print(f"\n📊 Total email tersedia di API: {total_emails}")
+    
+    if total_emails == 0:
+        print("❌ Tidak ada email tersedia di API")
+        return
+    
+    # Reset tracking email yang sudah digunakan
+    global _used_email_indices
+    _used_email_indices = []
+    
+    success_count = 0
+    failed_count = 0
+    retry_count = 0
+    max_retries_per_account = 2  # Maksimal retry per akun
+    
+    print(f"\n🚀 Memulai registrasi untuk {total_emails} akun...\n")
+    print("⚠️ TIPS ANTI-DETECTION:")
+    print("   - Script akan simulasi aktivitas manusia")
+    print("   - Delay random antar aksi untuk terlihat natural")
+    print("   - Jika ada CAPTCHA, selesaikan secara manual")
+    print("   - Jika akun terdeteksi 'at risk', script akan retry dengan delay lebih lama\n")
+    
+    i = 0
+    while i < total_emails:
+        print("\n" + "=" * 60)
+        print(f"📝 REGISTRASI AKUN #{i + 1} dari {total_emails}")
+        if retry_count > 0:
+            print(f"🔄 Retry ke-{retry_count} dari {max_retries_per_account}")
+        print("=" * 60 + "\n")
+        
         try:
-            import subprocess
-            subprocess.run("taskkill /F /IM chrome.exe /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            print("✓ Browser berhasil ditutup")
-        except:
-            pass
+            fill_demo_form(use_proxy=True)  # Enable proxy
+            success_count += 1
+            retry_count = 0  # Reset retry counter jika berhasil
+            print(f"\n✅ Akun #{i + 1} berhasil didaftarkan!")
+            
+            # Delay antar registrasi untuk menghindari rate limit (lebih lama untuk anti-detection)
+            if i < total_emails - 1:
+                delay = random.randint(15, 25)  # Delay lebih lama antar akun
+                print(f"\n⏳ Menunggu {delay} detik sebelum registrasi berikutnya (anti-detection)...")
+                time.sleep(delay)
+            
+            i += 1  # Lanjut ke akun berikutnya
+            
+        except KeyboardInterrupt:
+            print("\n\n⚠️ Program dihentikan oleh user (Ctrl+C)")
+            print("🛑 Menghentikan proses registrasi...")
+            break
+            
+        except Exception as e:
+            print(f"\n❌ Akun #{i + 1} gagal didaftarkan: {str(e)[:100]}")
+            
+            # Cek apakah perlu retry
+            if retry_count < max_retries_per_account:
+                retry_count += 1
+                print(f"\n🔄 Mencoba ulang akun #{i + 1} (retry {retry_count}/{max_retries_per_account})...")
+                
+                # Cleanup Chrome sebelum retry
+                print("🧹 Membersihkan Chrome sebelum retry...")
+                cleanup_chrome()
+                
+                # Delay sebelum retry (lebih lama untuk anti-detection)
+                delay = random.randint(20, 30)  # Delay lebih lama untuk retry
+                print(f"⏳ Menunggu {delay} detik sebelum retry (anti-detection)...")
+                time.sleep(delay)
+                
+                # Tidak increment i, akan retry akun yang sama
+                continue
+            else:
+                # Sudah mencapai max retry, skip akun ini
+                failed_count += 1
+                retry_count = 0
+                print(f"\n⚠️ Akun #{i + 1} dilewati setelah {max_retries_per_account} kali retry")
+                
+                # Cleanup Chrome sebelum lanjut
+                print("🧹 Membersihkan Chrome sebelum lanjut...")
+                cleanup_chrome()
+                
+                # Delay lebih lama jika gagal (untuk anti-detection)
+                if i < total_emails - 1:
+                    delay = random.randint(25, 40)  # Delay sangat lama setelah gagal
+                    print(f"\n⏳ Menunggu {delay} detik sebelum akun berikutnya (anti-detection)...")
+                    time.sleep(delay)
+                
+                i += 1  # Lanjut ke akun berikutnya
+    
+    # Summary
+    print("\n" + "=" * 60)
+    print("📊 RINGKASAN REGISTRASI")
+    print("=" * 60)
+    print(f"✅ Berhasil: {success_count} akun")
+    print(f"❌ Gagal: {failed_count} akun")
+    print(f"📧 Total email diproses: {success_count + failed_count} dari {total_emails}")
+    
+    if success_count > 0:
+        success_rate = (success_count / (success_count + failed_count)) * 100
+        print(f"📈 Success Rate: {success_rate:.1f}%")
+    
+    print("=" * 60 + "\n")
+    
+    # Cleanup final
+    print("🧹 Final cleanup...")
+    cleanup_chrome()
 
 if __name__ == "__main__":
-    print("=" * 60)
-    print("Automated Form + Custom Month Selector")
-    print("=" * 60)
-    fill_demo_form()
+    run_multiple_registrations()
