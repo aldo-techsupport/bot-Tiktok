@@ -369,10 +369,23 @@ def select_month_first(wait, driver, month_text="November"):
 def cleanup_chrome():
     """Cleanup Chrome process dan data"""
     import subprocess
+    import platform as plat
+    
     try:
         print("🔨 Memaksa menutup semua proses Chrome...")
-        result = subprocess.run("taskkill /F /IM chrome.exe /T", shell=True, capture_output=True, text=True)
-        if result.returncode == 0:
+        
+        system = plat.system()
+        
+        if system == "Windows":
+            result = subprocess.run("taskkill /F /IM chrome.exe /T", shell=True, capture_output=True, text=True)
+        elif system == "Linux" or system == "Darwin":
+            # Kill Chrome/Chromium di Linux/macOS
+            result = subprocess.run("pkill -9 chrome || pkill -9 chromium || true", shell=True, capture_output=True, text=True)
+        else:
+            print(f"⚠️ OS tidak didukung untuk cleanup: {system}")
+            return
+        
+        if result.returncode == 0 or system in ["Linux", "Darwin"]:
             print("✓ Semua proses Chrome berhasil ditutup")
         else:
             print("✓ Tidak ada proses Chrome yang perlu ditutup")
@@ -384,6 +397,7 @@ def fill_demo_form(use_proxy=True):
     import os
     import subprocess
     import socket
+    import platform as plat
     
     def is_port_open(port):
         """Check if port is already in use"""
@@ -402,27 +416,58 @@ def fill_demo_form(use_proxy=True):
     if not is_port_open(9222):
         print("🚀 Membuka Chrome dengan debugging port...")
         
-        # Path Chrome
-        chrome_paths = [
-            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
-        ]
+        # Deteksi OS
+        system = plat.system()
+        
+        # Path Chrome berdasarkan OS
+        if system == "Windows":
+            chrome_paths = [
+                r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+            ]
+        elif system == "Linux":
+            chrome_paths = [
+                "/usr/bin/google-chrome",
+                "/usr/bin/google-chrome-stable",
+                "/usr/bin/chromium",
+                "/usr/bin/chromium-browser",
+                "/snap/bin/chromium",
+                "/usr/bin/chrome"
+            ]
+        elif system == "Darwin":  # macOS
+            chrome_paths = [
+                "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                "/Applications/Chromium.app/Contents/MacOS/Chromium"
+            ]
+        else:
+            print(f"❌ OS tidak didukung: {system}")
+            return
         
         chrome_path = None
         for path in chrome_paths:
             if os.path.exists(path):
                 chrome_path = path
+                print(f"✓ Chrome ditemukan: {chrome_path}")
                 break
         
         if not chrome_path:
-            print("❌ Chrome tidak ditemukan")
+            print(f"❌ Chrome tidak ditemukan di {system}")
+            print("📝 Path yang dicoba:")
+            for path in chrome_paths:
+                print(f"   - {path}")
             return
         
         # Buat temp directory untuk Chrome profile
-        temp_profile = os.path.join(os.environ['TEMP'], 'chrome_automation_profile')
+        if system == "Windows":
+            temp_profile = os.path.join(os.environ['TEMP'], 'chrome_automation_profile')
+        else:
+            temp_profile = os.path.join('/tmp', 'chrome_automation_profile')
         
         # Buka Chrome dengan debugging port, temp profile, dan langsung ke URL
-        cmd = f'"{chrome_path}" --remote-debugging-port=9222 --user-data-dir="{temp_profile}" --no-first-run --no-default-browser-check "https://www.tiktok.com/signup/phone-or-email/email"'
+        if system == "Windows":
+            cmd = f'"{chrome_path}" --remote-debugging-port=9222 --user-data-dir="{temp_profile}" --no-first-run --no-default-browser-check "https://www.tiktok.com/signup/phone-or-email/email"'
+        else:
+            cmd = f'"{chrome_path}" --remote-debugging-port=9222 --user-data-dir="{temp_profile}" --no-first-run --no-default-browser-check "https://www.tiktok.com/signup/phone-or-email/email" &'
         
         subprocess.Popen(
             cmd,
