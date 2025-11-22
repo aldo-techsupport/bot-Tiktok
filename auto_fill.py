@@ -465,9 +465,9 @@ def fill_demo_form(use_proxy=True):
         
         # Buka Chrome dengan debugging port, temp profile, dan langsung ke URL
         if system == "Windows":
-            cmd = f'"{chrome_path}" --remote-debugging-port=9222 --user-data-dir="{temp_profile}" --no-first-run --no-default-browser-check "https://www.tiktok.com/signup/phone-or-email/email"'
+            cmd = f'"{chrome_path}" --remote-debugging-port=9222 --user-data-dir="{temp_profile}" --no-first-run --no-default-browser-check "https://www.tiktok.com/signup/phone-or-email/email?lang=id-ID"'
         else:
-            cmd = f'"{chrome_path}" --remote-debugging-port=9222 --user-data-dir="{temp_profile}" --no-first-run --no-default-browser-check "https://www.tiktok.com/signup/phone-or-email/email" &'
+            cmd = f'"{chrome_path}" --remote-debugging-port=9222 --user-data-dir="{temp_profile}" --no-first-run --no-default-browser-check "https://www.tiktok.com/signup/phone-or-email/email?lang=id-ID" &'
         
         subprocess.Popen(
             cmd,
@@ -511,7 +511,7 @@ def fill_demo_form(use_proxy=True):
         
         # Buka halaman TikTok
         print("Membuka halaman TikTok...")
-        driver.get("https://www.tiktok.com/signup/phone-or-email/email")
+        driver.get("https://www.tiktok.com/signup/phone-or-email/email?lang=id-ID")
         
         wait = WebDriverWait(driver, 20)
 
