@@ -7,11 +7,15 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException
+from faker import Faker
 import time
 import random
 import string
 import requests
 import json
+
+# Initialize Faker
+fake = Faker()
 
 # Global variable untuk track email yang sudah dicoba
 _used_email_indices = []
@@ -142,6 +146,28 @@ def get_otp_code(email):
 def generate_random_email():
     username = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
     return f"{username}@example.com"
+
+def generate_username():
+    """Generate username yang natural menggunakan Faker"""
+    # Berbagai style username yang umum digunakan
+    styles = [
+        lambda: fake.user_name(),  # username style: john_doe, jane_smith
+        lambda: fake.first_name().lower() + str(random.randint(100, 9999)),  # john1234
+        lambda: fake.first_name().lower() + fake.last_name().lower(),  # johndoe
+        lambda: fake.first_name().lower() + "_" + fake.last_name().lower(),  # john_doe
+        lambda: fake.last_name().lower() + str(random.randint(10, 999)),  # smith123
+        lambda: fake.word() + str(random.randint(100, 9999)),  # cool1234
+        lambda: fake.first_name().lower() + fake.word(),  # johnawesome
+    ]
+    
+    # Pilih style secara random
+    username = random.choice(styles)()
+    
+    # Bersihkan karakter yang tidak diizinkan dan batasi panjang
+    username = username.replace(".", "").replace("-", "_")
+    username = username[:20]  # TikTok max username length
+    
+    return username
 
 def generate_random_password():
     """Generate password dengan kombinasi huruf, angka, dan karakter khusus"""
@@ -848,9 +874,6 @@ def fill_demo_form(use_proxy=True):
                             # ==========================================
                             print("\n👤 Mengisi username...")
                             
-                            # Generate username dari email
-                            username_from_email = temp_email.split('@')[0]
-                            
                             # Coba isi username
                             max_attempts = 5
                             for attempt in range(max_attempts):
@@ -860,12 +883,8 @@ def fill_demo_form(use_proxy=True):
                                         EC.presence_of_element_located((By.CSS_SELECTOR, "input[placeholder*='nama pengguna' i], input[placeholder*='username' i]"))
                                     )
                                     
-                                    # Generate username
-                                    if attempt == 0:
-                                        username = username_from_email
-                                    else:
-                                        # Generate random username
-                                        username = ''.join(random.choices(string.ascii_lowercase + string.digits, k=random.randint(8, 12)))
+                                    # Generate username menggunakan Faker untuk lebih natural
+                                    username = generate_username()
                                     
                                     print(f"Mencoba username: {username}")
                                     
